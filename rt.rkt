@@ -34,12 +34,17 @@
 (define screen-width  640)
 (define screen-height 480)
 
-(define col-red (color 255 0 0 0))
-(define col-navy (color 0 155  120 0))
-(define col-green (color 0 255  0 0))
-(define col-blue (color 0 100 200 0))
-(define col-black (color 0 0 0 0))
+;; (define col-red (color 255 0 0 0))
+;; (define col-navy (color 0 155  120 0))
+;; (define col-green (color 0 255  0 0))
+;; (define col-blue (color 0 100 200 0))
+;; (define col-black (color 0 0 0 0))
 
+(define col-red (make-object color% 255 0 0 0))
+(define col-navy (make-object color% 0 155  120 0))
+(define col-green (make-object color% 0 255  0 0))
+(define col-blue (make-object color% 0 100 200 0))
+(define col-black (make-object color% 0 0 0 0))
 
 (define sph-list 
   (list (sphere3D (vec 100.0 100.0 0.0) 130 col-red)
@@ -80,7 +85,7 @@
   (ray (vec x y -1000.0) cam-direction))
 
 (define null-point
-  (point (color 0 0 0 0) 0 0))
+  (point col-black 0 0))
 
 (define (hit-sphere3D r s)
   (let* ([dist-vector (subtract-vec (sphere3D-center s) (ray-from r))]
@@ -104,39 +109,47 @@
                       (hit-sphere3D view-ray obj)))))
 
 
-(require racket/gui)
 
-; Make a frame
-(define frame (new frame% [label "racket ray tracer"]
-                   [width screen-width]
-                   [height screen-height]))
-
-; Make the drawing area
-(define canvas (new canvas% [parent frame]))
-; Get the canvas's drawing context
-(define dc (send canvas get-dc))
-
-(define (put-pixel dc x y col)
-  (send dc set-pen 
-        (make-object color% (color-r col) (color-g col) (color-b col))
-        1
-        'solid)
-  (send dc draw-point x y))
-
-(define (render-scene object-list dc)
+(define (render-scene object-list dc bmp)
   (for* ([x screen-width]
          [y screen-height])
     (let* ([ray-res (ray-cast x y object-list)]
            [pix-col (point-col (int-res-p ray-res))])
-      (put-pixel dc x y pix-col))))
+      (send bmp set-pixel x y pix-col)
+)))
+
+(define (render-scene-dummy object-list)
+  (for* ([x screen-width]
+         [y screen-height])
+    (let* ([ray-res (ray-cast x y object-list)]
+           [pix-col (point-col (int-res-p ray-res))])
+      #t))) 
+
+(define (make-scene-bitmap w h)
+  (new bitmap-dc% [bitmap (make-object bitmap% w h)])
+)
+
+(define (run-no-render)
+  (render-scene-dummy sph-list))
+
+(require racket/gui)
 
 (define (run-tracer)
-  ; Show the frame
-  (send frame show #t)
-  ; Wait a second to let the window get ready
-  (sleep/yield 1)
-  ; Draw the scene
-  ;; (draw-scene dc)
-  (render-scene sph-list dc))
+  (let* ([frame (new frame% [label "racket ray tracer"]
+		     [width screen-width]
+		     [height screen-height])]
+	 [canvas (new canvas% [parent frame])]
+	 [dc (send canvas get-dc)]
+	 [bmp (make-scene-bitmap screen-width screen-height)])
+; Show the frame
+    (send frame show #t)
+; Wait a second to let the window get ready
+    (sleep/yield 1)
+; Draw the scene
+    (printf "rendering scene...")
+    (time
+     (render-scene sph-list dc bmp))
+    (send dc draw-bitmap (send bmp get-bitmap) 0 0)
+    frame))
 
-(run-tracer)
+;; (run-tracer)
