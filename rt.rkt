@@ -1,4 +1,5 @@
 #lang racket/gui
+(require racket/flonum)
 ;; basic structs -------------------------------------------
 (struct pixel (r g b))
 (struct vec (x y z))
@@ -47,42 +48,42 @@
 (define col-black (make-object color% 0 0 0 0))
 
 (define sph-list 
-  (list (sphere3D (vec 100.0 100.0 0.0) 130 col-red)
-        (sphere3D (vec 200 150 22) 120 col-blue)
-        (sphere3D (vec 500 300 0) 49 col-navy)))
+  (list (sphere3D (vec 100.0 100.0 0.0) 130.0 col-red)
+        (sphere3D (vec 200.0 150.0 22.0) 120.0 col-blue)
+        (sphere3D (vec 500.0 300.0 0.0) 49.0 col-navy)))
 
 
 ;; vector stuff --------------------------------------------
 (define (scalar-mult v1 v2)
-  (+ (* (vec-x v2) (vec-x v1) )
-     (* (vec-y v2) (vec-y v1) )
-     (* (vec-z v2) (vec-z v1) )))
+  (fl+ (fl* (vec-x v2) (vec-x v1) )
+       (fl+   (fl* (vec-y v2) (vec-y v1) )
+	      (fl* (vec-z v2) (vec-z v1) ))))
 
 (define (sqr-norm v)
   (scalar-mult v v))
 
 (define (vec-length v)
-  (sqrt (sqr-norm v)))
+  (flsqrt (sqr-norm v)))
 
 (define (normalize-vec v)
   (let* ([x (vec-x v)]	[y (vec-y v)] [z (vec-z v)] 
                            [len (vec-length v)])
-    (vec (/ x len) (/ y len) (/ z len))))
+    (vec (fl/ x len) (fl/ y len) (fl/ z len))))
 
 (define (subtract-vec v2 v1)
-  (vec (- (vec-x v2) (vec-x v1) )
-       (- (vec-y v2) (vec-y v1) )
-       (- (vec-z v2) (vec-z v1) )))
+  (vec (fl- (vec-x v2) (vec-x v1) )
+       (fl- (vec-y v2) (vec-y v1) )
+       (fl- (vec-z v2) (vec-z v1) )))
 
 (define (get-closer-res i1 i2)
-  (if (and (> (int-res-t i1) (int-res-t i2))
+  (if (and (fl> (int-res-t i1) (int-res-t i2))
            (int-res-int? i2))
       i2
       i1))
 
 ;; sphere3D intersection
 (define (screen-ray x y)
-  (ray (vec x y -1000.0) cam-direction))
+  (ray (vec (->fl x) (->fl y) -1000.0) cam-direction))
 
 (define null-point
   (point col-black 0 0))
@@ -90,20 +91,20 @@
 (define (hit-sphere3D r s)
   (let* ([dist-vector (subtract-vec (sphere3D-center s) (ray-from r))]
          [B (scalar-mult dist-vector (ray-dir r))]
-         [D (+ (* B B) (- (sqr-norm dist-vector)) (sqr (sphere3D-radius s)))])
-    (if (> D 0) 
-        (let ([t0 (- B (sqrt D))] 
-              [t1 (+ B (sqrt D))])
-          (if (and (> t0 0.1) 
-                   (< t0 t1))
-              (int-res #t t0 (point (sphere3D-col s) 0 0))
-              (int-res #t t1 (point (sphere3D-col s) 0 0))))
-        (int-res #f 0 null-point))))
+         [D (fl+ (fl* B B) (fl+ (fl- 0.0 (sqr-norm dist-vector)) (flexpt (sphere3D-radius s) 2.0)))])
+    (if (fl> D 0.0) 
+        (let ([t0 (fl- B (sqrt D))] 
+              [t1 (fl+ B (sqrt D))])
+          (if (and (fl> t0 0.1) 
+                   (fl< t0 t1))
+              (int-res #t t0 (point (sphere3D-col s) 0.0 0.0))
+              (int-res #t t1 (point (sphere3D-col s) 0.0 0.0))))
+        (int-res #f 0.0 null-point))))
 
 
 (define (ray-cast x y object-list)
   (let ([view-ray (screen-ray x y)])
-    (for/fold ([closest-int (int-res #f 10000 null-point)])
+    (for/fold ([closest-int (int-res #f 10000.0 null-point)])
       ([obj object-list])
       (get-closer-res closest-int 
                       (hit-sphere3D view-ray obj)))))
