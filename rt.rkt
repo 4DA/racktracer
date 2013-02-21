@@ -37,29 +37,16 @@
 (define screen-width  640)
 (define screen-height 480)
 
-;; (define col-red (color 255 0 0 0))
-;; (define col-navy (color 0 155  120 0))
-;; (define col-green (color 0 255  0 0))
-;; (define col-blue (color 0 100 200 0))
-;; (define col-black (color 0 0 0 0))
-
 (define col-red (make-object color% 255 0 0 0))
 (define col-navy (make-object color% 0 155  120 0))
 (define col-green (make-object color% 0 255  0 0))
 (define col-blue (make-object color% 0 100 200 0))
 (define col-black (make-object color% 0 0 0 0))
 
-;; (define sph-list 
-;;   (vector (sphere3D (vec 100.0 100.0 0.0) 130.0 col-red)
-;; 	  (sphere3D (vec 200.0 150.0 22.0) 120.0 col-blue)
-;; 	  (sphere3D (vec 500.0 300.0 0.0) 49.0 col-navy)))
-
 (define sph-list 
   (list (sphere3D (vec 100.0 100.0 0.0) 130.0 col-red)
 	  (sphere3D (vec 200.0 150.0 22.0) 120.0 col-blue)
 	  (sphere3D (vec 500.0 300.0 0.0) 49.0 col-navy)))
-
-
 
 ;; vector stuff --------------------------------------------
 (define (scalar-mult v1 v2)
@@ -116,15 +103,6 @@
 	([obj (in-list object-list)])
       (get-closer-res closest-int 
                       (hit-sphere3D view-ray obj)))))
-
-;; (define (ray-cast x y object-list)
-;;   (let ([view-ray (screen-ray x y)])
-;;     (define closest-int (int-res #f 10000.0 null-point))
-;;     (for ([i (in-range 0 (vector-length object-list))])
-;;       (define obj (vector-ref object-list i))
-;;       (set! closest-int (get-closer-res closest-int
-;;                                         (hit-sphere3D view-ray obj))))
-;;     closest-int))
 
 (define (render-scene object-list dc bmp)
   (let* ([f (future 
