@@ -1,5 +1,7 @@
 #lang racket/gui
 (require racket/flonum)
+(require racket/future)
+
 ;; basic structs -------------------------------------------
 (struct pixel (r g b))
 (struct vec (x y z))
@@ -47,10 +49,16 @@
 (define col-blue (make-object color% 0 100 200 0))
 (define col-black (make-object color% 0 0 0 0))
 
+;; (define sph-list 
+;;   (vector (sphere3D (vec 100.0 100.0 0.0) 130.0 col-red)
+;; 	  (sphere3D (vec 200.0 150.0 22.0) 120.0 col-blue)
+;; 	  (sphere3D (vec 500.0 300.0 0.0) 49.0 col-navy)))
+
 (define sph-list 
   (list (sphere3D (vec 100.0 100.0 0.0) 130.0 col-red)
-        (sphere3D (vec 200.0 150.0 22.0) 120.0 col-blue)
-        (sphere3D (vec 500.0 300.0 0.0) 49.0 col-navy)))
+	  (sphere3D (vec 200.0 150.0 22.0) 120.0 col-blue)
+	  (sphere3D (vec 500.0 300.0 0.0) 49.0 col-navy)))
+
 
 
 ;; vector stuff --------------------------------------------
@@ -93,8 +101,8 @@
          [B (scalar-mult dist-vector (ray-dir r))]
          [D (fl+ (fl* B B) (fl+ (fl- 0.0 (sqr-norm dist-vector)) (flexpt (sphere3D-radius s) 2.0)))])
     (if (fl> D 0.0) 
-        (let ([t0 (fl- B (sqrt D))] 
-              [t1 (fl+ B (sqrt D))])
+        (let ([t0 (fl- B (flsqrt D))] 
+              [t1 (fl+ B (flsqrt D))])
           (if (and (fl> t0 0.1) 
                    (fl< t0 t1))
               (int-res #t t0 (point (sphere3D-col s) 0.0 0.0))
@@ -105,26 +113,52 @@
 (define (ray-cast x y object-list)
   (let ([view-ray (screen-ray x y)])
     (for/fold ([closest-int (int-res #f 10000.0 null-point)])
-      ([obj object-list])
+	([obj (in-list object-list)])
       (get-closer-res closest-int 
                       (hit-sphere3D view-ray obj)))))
 
-
+;; (define (ray-cast x y object-list)
+;;   (let ([view-ray (screen-ray x y)])
+;;     (define closest-int (int-res #f 10000.0 null-point))
+;;     (for ([i (in-range 0 (vector-length object-list))])
+;;       (define obj (vector-ref object-list i))
+;;       (set! closest-int (get-closer-res closest-int
+;;                                         (hit-sphere3D view-ray obj))))
+;;     closest-int))
 
 (define (render-scene object-list dc bmp)
-  (for* ([x screen-width]
-         [y screen-height])
-    (let* ([ray-res (ray-cast x y object-list)]
-           [pix-col (point-col (int-res-p ray-res))])
-      (send bmp set-pixel x y pix-col)
-)))
+  (let* ([f (future 
+	   (lambda ()   
+	     (for* ([x (in-range (/ screen-width 2))]
+		    [y (in-range screen-height)])
+	       (let* ([ray-res (ray-cast x y object-list)]
+		      [pix-col (point-col (int-res-p ray-res))])
+		 (send bmp set-pixel x y pix-col)))
+	     ))])
+
+    (for* ([x (in-range (/ screen-width 2) screen-width)]
+	   [y (in-range screen-height)])
+      (let* ([ray-res (ray-cast x y object-list)]
+	     [pix-col (point-col (int-res-p ray-res))])
+	(send bmp set-pixel x y pix-col)))
+    (touch f)))
 
 (define (render-scene-dummy object-list)
-  (for* ([x screen-width]
-         [y screen-height])
-    (let* ([ray-res (ray-cast x y object-list)]
-           [pix-col (point-col (int-res-p ray-res))])
-      #t))) 
+  (let* ([f (future 
+	   (lambda ()   
+	     (for* ([x (in-range (/ screen-width 2))]
+		    [y (in-range screen-height)])
+	       (let* ([ray-res (ray-cast x y object-list)]
+		      [pix-col (point-col (int-res-p ray-res))])
+		 #t))
+	     ))])
+
+    (for* ([x (in-range (/ screen-width 2) screen-width)]
+	   [y (in-range screen-height)])
+      (let* ([ray-res (ray-cast x y object-list)]
+	     [pix-col (point-col (int-res-p ray-res))])
+	#t))
+    (touch f))) 
 
 (define (make-scene-bitmap w h)
   (new bitmap-dc% [bitmap (make-object bitmap% w h)])
