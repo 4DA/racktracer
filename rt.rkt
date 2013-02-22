@@ -1,6 +1,7 @@
 #lang racket/gui
 (require racket/flonum)
 (require racket/future)
+(require future-visualizer)
 
 ;; basic structs -------------------------------------------
 (struct pixel (r g b))
@@ -34,8 +35,11 @@
 
 ;; basic constatns -----------------------------------------
 (define cam-direction (vec 0.0 0.0 1.0))
-(define screen-width  640)
-(define screen-height 480)
+(define screen-width  640.0)
+(define screen-height 480.0)
+(define scene-width  640)
+(define scene-height 480)
+
 
 (define col-red (make-object color% 255 0 0 0))
 (define col-navy (make-object color% 0 155  120 0))
@@ -78,7 +82,7 @@
 
 ;; sphere3D intersection
 (define (screen-ray x y)
-  (ray (vec (->fl x) (->fl y) -1000.0) cam-direction))
+  (ray (vec  x  y -1000.0) cam-direction))
 
 (define null-point
   (point col-black 0 0))
@@ -96,47 +100,122 @@
               (int-res #t t1 (point (sphere3D-col s) 0.0 0.0))))
         (int-res #f 0.0 null-point))))
 
-
 (define (ray-cast x y object-list)
-  (let ([view-ray (screen-ray x y)])
-    (for/fold ([closest-int (int-res #f 10000.0 null-point)])
-	([obj (in-list object-list)])
-      (get-closer-res closest-int 
-                      (hit-sphere3D view-ray obj)))))
+    (let ([view-ray (screen-ray x y)])
+      (let loop ([closest-int  (int-res #f 10000.0 null-point)]
+                 [object-list  object-list])
+        (cond [(empty? object-list)  closest-int]
+              [else
+               (define obj (first object-list))
+               (loop (get-closer-res closest-int (hit-sphere3D view-ray obj))
+                     (rest object-list))]))))
 
-(define (render-scene object-list dc bmp)
-  (let* ([f (future 
-	   (lambda ()   
-	     (for* ([x (in-range (/ screen-width 2))]
-		    [y (in-range screen-height)])
-	       (let* ([ray-res (ray-cast x y object-list)]
-		      [pix-col (point-col (int-res-p ray-res))])
-		 (send bmp set-pixel x y pix-col)))
-	     ))])
 
-    (for* ([x (in-range (/ screen-width 2) screen-width)]
-	   [y (in-range screen-height)])
-      (let* ([ray-res (ray-cast x y object-list)]
-	     [pix-col (point-col (int-res-p ray-res))])
-	(send bmp set-pixel x y pix-col)))
-    (touch f)))
+(define (render-half-scene object-list x-start x-end bmp)
+    (let x-loop ([x x-start])
+      (cond
+        [(x . fl< . x-end)
+         (let y-loop ([y 0.0])
+           (cond
+             [(y . fl< . screen-height)
+              (let* ([ray-res (ray-cast x y object-list)]
+                     [pix-col (point-col (int-res-p ray-res))]
+		     [xp (fl->exact-integer x)]
+		     [yp (fl->exact-integer y)])
+		(send bmp set-pixel xp yp pix-col)
+                (y-loop (fl+ y 1.0)))]
+             [else  (x-loop (fl+ x 1.0))]))]
+        [else  #t])))
+ 
+  ;; (: render-scene ((Listof sphere3D) -> Void))
+  (define (render-scene object-list bmp)
+    (define screen-width/4 (fl/ screen-width 4.0))
+    (define screen-width/2 (fl/ screen-width 2.0))
+    (define 3screen-width/4 (fl* screen-width 0.75))
+    (define f1
+      (future
+       (lambda ()
+         (render-half-scene object-list
+                                  0.0
+                                  screen-width/4 bmp))))
+    (define f2
+      (future
+       (lambda ()
+         (render-half-scene object-list
+                                  screen-width/4
+                                  screen-width/2 bmp))))
 
-(define (render-scene-dummy object-list)
-  (let* ([f (future 
-	   (lambda ()   
-	     (for* ([x (in-range (/ screen-width 2))]
-		    [y (in-range screen-height)])
-	       (let* ([ray-res (ray-cast x y object-list)]
-		      [pix-col (point-col (int-res-p ray-res))])
-		 #t))
-	     ))])
+    (define f3
+      (future
+       (lambda ()
+         (render-half-scene object-list
+                                  screen-width/2
+                                  3screen-width/4 bmp))))
 
-    (for* ([x (in-range (/ screen-width 2) screen-width)]
-	   [y (in-range screen-height)])
-      (let* ([ray-res (ray-cast x y object-list)]
-	     [pix-col (point-col (int-res-p ray-res))])
-	#t))
-    (touch f))) 
+    (define f4
+      (future
+       (lambda ()
+         (render-half-scene object-list
+                                  3screen-width/4
+                                  screen-width bmp))))
+
+
+    (touch f1)
+    (touch f2)
+    (touch f3)
+    (touch f4)
+    (void))
+
+(define (render-half-scene-dummy object-list x-start x-end)
+    (let x-loop ([x x-start])
+      (cond
+        [(x . fl< . x-end)
+         (let y-loop ([y 0.0])
+           (cond
+             [(y . fl< . screen-height)
+              (let* ([ray-res (ray-cast x y object-list)]
+                     [pix-col (point-col (int-res-p ray-res))])
+                (y-loop (fl+ y 1.0)))]
+             [else  (x-loop (fl+ x 1.0))]))]
+        [else  #t])))
+ 
+  (define (render-scene-dummy object-list)
+    (define screen-width/4 (fl/ screen-width 4.0))
+    (define screen-width/2 (fl/ screen-width 2.0))
+    (define 3screen-width/4 (fl* screen-width 0.75))
+    (define f1
+      (future
+       (lambda ()
+         (render-half-scene-dummy object-list
+                                  0.0
+                                  screen-width/4))))
+    (define f2
+      (future
+       (lambda ()
+         (render-half-scene-dummy object-list
+                                  screen-width/4
+                                  screen-width/2))))
+
+    (define f3
+      (future
+       (lambda ()
+         (render-half-scene-dummy object-list
+                                  screen-width/2
+                                  3screen-width/4))))
+
+    (define f4
+      (future
+       (lambda ()
+         (render-half-scene-dummy object-list
+                                  3screen-width/4
+                                  screen-width))))
+
+
+    (touch f1)
+    (touch f2)
+    (touch f3)
+    (touch f4)
+    (void))
 
 (define (make-scene-bitmap w h)
   (new bitmap-dc% [bitmap (make-object bitmap% w h)])
@@ -149,11 +228,11 @@
 
 (define (run-tracer)
   (let* ([frame (new frame% [label "racket ray tracer"]
-		     [width screen-width]
-		     [height screen-height])]
+		     [width scene-width]
+		     [height scene-height])]
 	 [canvas (new canvas% [parent frame])]
 	 [dc (send canvas get-dc)]
-	 [bmp (make-scene-bitmap screen-width screen-height)])
+	 [bmp (make-scene-bitmap scene-width scene-height)])
 ; Show the frame
     (send frame show #t)
 ; Wait a second to let the window get ready
@@ -161,7 +240,7 @@
 ; Draw the scene
     (printf "rendering scene...")
     (time
-     (render-scene sph-list dc bmp))
+     (render-scene sph-list bmp))
     (send dc draw-bitmap (send bmp get-bitmap) 0 0)
     frame))
 
